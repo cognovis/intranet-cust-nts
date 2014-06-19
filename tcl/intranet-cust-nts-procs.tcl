@@ -438,7 +438,7 @@ ad_proc -public -callback im_user_absence_new_actions -impl nts-storno-workflow 
                     and workflow_key = 'vacation_storno_wf'
                     and state = 'active'
                 " -default 0]
-            
+
             if {$active_storno_workflow_p} {
                 # Remove the actions and overwrite it with a cancel button for the workflow if the user is the owner
                 set actions ""
@@ -458,6 +458,37 @@ ad_proc -public -callback im_user_absence_new_actions -impl nts-storno-workflow 
     }
 }
 
+ad_proc -public -callback im_user_absence_info_actions -impl nts-storno-workflow {
+} {
+    Add a link to cancel the storno workflow 
+} {
+    uplevel {
+        if {[info exists absence_id] && $owner_id eq $current_user_id} {
+            set active_storno_workflow_p [db_string wf_control "
+            	    select	count(*)
+                    from	wf_cases
+                    where	object_id = :absence_id
+                    and workflow_key = 'vacation_storno_wf'
+                    and state = 'active'
+                " -default 0]
+        
+            if {$active_storno_workflow_p} {
+                # Remove the actions and overwrite it with a cancel button for the workflow if the user is the owner
+                set actions_html ""
+                append actions_html "<input type=\"submit\" name=\"formbutton:cancel_storno_wf\" value=\"[lang::message::lookup {} intranet-cust-nts.Cancel_Storno_WF "Cancel the storno workflow"]\">"
+                return 1
+            } 
+            
+            # Check if we have a vacation in the past and then remove the right to change or delete it for the owner
+            set active_past_vacation_p [db_string check_vacation "select 1 from im_user_absences where absence_status_id = [im_user_absence_status_active] and start_date < now() and absence_id = :absence_id" -default 0]
+            if {$active_past_vacation_p} {
+                set actions_html ""
+            }
+        }
+    }
+}
+
+
 
 ad_proc -public -callback im_user_absence_new_button_pressed -impl nts-storno-cancel {
     {-button_pressed:required} 
@@ -474,6 +505,8 @@ ad_proc -public -callback im_user_absence_new_button_pressed -impl nts-storno-ca
             #Record the change manually, as the workflow did fail (probably because the case is already closed
             im_workflow_new_journal -case_id $case_id -action "cancel storno" -action_pretty "Cancel Storno" -message "Storno for Absence was cancelled by [im_name_from_user_id $user_id]"
         }
+
+        db_dml activate_absence "update im_user_absences set absence_status_id = [im_user_absence_status_active] where absence_id = :absence_id"
         
         # Return to the absence, now without storno workflow
     	ad_returnredirect [export_vars -base "/intranet-timesheet2/absences/new" -url {absence_id {form_mode "display"}}]
