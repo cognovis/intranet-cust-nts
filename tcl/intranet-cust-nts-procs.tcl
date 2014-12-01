@@ -506,8 +506,10 @@ ad_proc -public -callback im_user_absence_new_button_pressed -impl nts-storno-ca
             im_workflow_new_journal -case_id $case_id -action "cancel storno" -action_pretty "Cancel Storno" -message "Storno for Absence was cancelled by [im_name_from_user_id $user_id]"
         }
 
+	# Update the task and the absence
+	db_dml finish_task "update wf_tasks set state = 'finished', finished_date = now() where case_id = :case_id and state <> 'finished'" 
         db_dml activate_absence "update im_user_absences set absence_status_id = [im_user_absence_status_active] where absence_id = :absence_id"
-        
+         
         # Return to the absence, now without storno workflow
     	ad_returnredirect [export_vars -base "/intranet-timesheet2/absences/new" -url {absence_id {form_mode "display"}}]
     }
