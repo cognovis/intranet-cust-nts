@@ -302,7 +302,7 @@ drop function inline_0 ();
          'hr_approved',
          'out',
          'wf_callback__guard_attribute_true',
-         'review_reject_p',
+         'hr_review_reject_p',
          'Approved'
 	);
 
