@@ -17,12 +17,16 @@ ad_page_contract {
 
     @author frank.bergmann@project-open.com
 } {
+    {booking_date ""}
 }
 
 set return_url "/intranet"
 set user_id [ad_maybe_redirect_for_registration]
 set page_title "Upload Entitlements CSV"
 set context_bar [im_context_bar [list "/intranet/users/" "Users"] $page_title]
+if {$booking_date eq ""} {
+    set booking_date [lindex [split [ns_localsqltimestamp] " "] 0]
+}
 
 set user_is_admin_p [im_is_user_site_wide_or_intranet_admin $user_id]
 if {!$user_is_admin_p && ![im_user_is_hr_p $user_id]} {
@@ -34,10 +38,10 @@ ad_form -html { enctype multipart/form-data } -export { return_url } -name "uplo
         {upload_file:file {label \#file-storage.Upload_a_file\#} {html "size 30"}}
         {leave_entitlement_name:text(text) {label "[_ intranet-timesheet2.Absence_Name]"} {html {size 40}}}
         {leave_entitlement_type_id:text(im_category_tree) {label "[_ intranet-timesheet2.Type]"} {custom {category_type "Intranet Absence Type"}}}
-        {booking_date:date(date) {label "[_ intranet-timesheet2.Booking_date]"} {format "YYYY-MM-DD"} {after_html {<input type="button" style="height:23px; width:23px; background: url('/resources/acs-templating/calendar.gif');" onclick ="return showCalendarWithDateWidget('booking_date', 'y-m-d');" >}}}
+        {booking_date:text(text) {label "[_ intranet-timesheet2.Start_Date]"} {value "$booking_date"} {html {size 10}} {after_html {<input type="button" style="height:20px; width:20px; background: url('/resources/acs-templating/calendar.gif');" onclick ="return showCalendar('booking_date', 'y-m-d');" >}}}
         {description:text(textarea),optional {label "[_ intranet-timesheet2.Description]"} {html {cols 40}}}
 } -on_request {
-    set booking_date [db_string now "select to_char(now(),'YYYY-MM-DD') from dual"]
+    set booking_date [lindex [split [ns_localsqltimestamp] " "] 0]
 } -on_submit {
 
     # ---------------------------------------------------------------
