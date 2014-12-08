@@ -48,11 +48,15 @@ ad_proc -public im_nts_absence_inform {
     
     # Get the recipients
     set to_ids $pm_ids
-    lappend to_ids $supervisor_id
+    if {$supervisor_id ne ""} {
+        lappend to_ids $supervisor_id
+    }
     
     # If it is another absence, have HR involved
     if {[im_sub_categories [im_user_absence_type_personal]] == $absence_type_id} {
-        set to_ids [concat $to_ids $hr_ids]
+        if {$hr_ids ne ""} {
+            set to_ids [concat $to_ids $hr_ids]
+        }
     }
     
     set workflow_msg ""
@@ -97,6 +101,12 @@ ad_proc -public im_nts_absence_inform {
         }
         approved {          
             set subject "[_ intranet-cust-nts.lt_Approved_Absence_Requ]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
+            set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
+            set cc_addr $from_addr
+            set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
+        }
+        hr_approved {          
+            set subject "[_ intranet-cust-nts.lt_Approved_Absence_Requ] HR: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
@@ -398,8 +408,12 @@ ad_proc -public -callback workflow_task_after_update -impl nts_inform {
                     return [im_nts_absence_inform -absence_id $absence_id -type approved -msg $msg] 
                 }
             }
-            if {[info exists hr_review_reject_p] && $hr_review_reject_p == "f"} {
-                return [im_nts_absence_inform -absence_id $absence_id -type hr_rejected -msg $msg] 
+            if {[info exists hr_review_reject_p]} {
+                if {$hr_review_reject_p == "f"} {
+                    return [im_nts_absence_inform -absence_id $absence_id -type hr_rejected -msg $msg] 
+                } else {
+                    return [im_nts_absence_inform -absence_id $absence_id -type hr_approved -msg $msg] 
+                }
             }
         }
         "vacation_storno_wf" {
