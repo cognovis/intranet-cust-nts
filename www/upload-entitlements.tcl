@@ -25,7 +25,7 @@ set page_title "Upload Entitlements CSV"
 set context_bar [im_context_bar [list "/intranet/users/" "Users"] $page_title]
 
 set user_is_admin_p [im_is_user_site_wide_or_intranet_admin $user_id]
-if {!$user_is_admin_p} {
+if {!$user_is_admin_p && ![im_user_is_hr_p $user_id]} {
     ad_return_complaint 1 "You have insufficient privileges to use this page"
     return
 }
