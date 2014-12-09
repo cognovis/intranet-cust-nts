@@ -108,7 +108,11 @@ ad_proc -public im_nts_absence_inform {
         hr_approved {          
             set subject "[_ intranet-cust-nts.lt_Approved_Absence_Requ] HR: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
+	    # Send to supervisor and HR in CC
             set cc_addr $from_addr
+	    if {$supervisor_id ne $user_id} {
+		lappend cc_addr [db_string owner_mail "select email from parties where party_id = :supervisor_id"]
+	    }
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
         }
         rejected {
