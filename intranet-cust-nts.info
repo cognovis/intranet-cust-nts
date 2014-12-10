@@ -10,12 +10,12 @@
     <inherit-templates-p>f</inherit-templates-p>
     <auto-mount>intranet-cust-nts</auto-mount>
     
-    <version name="1.0" url="http://openacs.org/repository/download/apm/intranet-cust-nts-1.0.apm">
+    <version name="1.0.0.0.1" url="http://openacs.org/repository/download/apm/intranet-cust-nts-1.0.0.0.1.apm">
         <owner url="mailto:malte.sussdorff@cognovis.de">Malte Sussdorff</owner>
         <summary>Custom Package for Neusoft</summary>
         <maturity>0</maturity>
 
-        <provides url="intranet-cust-nts" version="1.0"/>
+        <provides url="intranet-cust-nts" version="1.0.0.0.1"/>
         <requires url="intranet-core" version="4.0.5.0.7"/>
 
         <callbacks>
