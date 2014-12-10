@@ -31,9 +31,25 @@ ad_proc -public im_nts_absence_inform {
 } {
     Procedure to send out the E-Mail for an absence
 } {
-    db_1row absence_info "select owner_id, to_char(start_date,'YYYY-MM-DD') as start_date,to_char(end_date,'YYYY-MM-DD') as end_date,
-        duration_days,absence_type_id,absence_name,description, contact_info, vacation_replacement_id
-        from im_user_absences where absence_id = :absence_id"
+    db_1row absence_info "
+        select 
+            owner_id, 
+            to_char(start_date,'YYYY-MM-DD') as start_date,
+            to_char(end_date,'YYYY-MM-DD') as end_date,
+            duration_days,
+            absence_type_id,
+            absence_name,
+            description,
+            contact_info,
+            vacation_replacement_id,
+            ut.user_id as wf_assigned_user_id
+        from im_user_absences a
+        left outer join wf_cases wfc
+        on (wfc.object_id=a.absence_id)
+        left outer join wf_user_tasks ut
+        on (ut.case_id=wfc.case_id)
+        where absence_id = :absence_id
+    "
     set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
     set supervisor_id [db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id"  -default ""]
     set hr_ids [group::get_members -group_id [im_hr_group_id]]
@@ -149,6 +165,12 @@ ad_proc -public im_nts_absence_inform {
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_rejection]: $msg"
+        }
+        7_days_over {
+            set subject "[_ intranet-cust-nts.lt_Reminder_New_Absence_Request]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
+            set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
+            set cc_addr $from_addr
+            set workflow_msg "<br\>[_ intranet-cust-nts.Please_Process_Absence_Request]: $msg"
         }
     }
     
@@ -660,4 +682,96 @@ ad_proc -public im_nts_update_from_ldap {
             auth::ldap::authentication::Sync $username "LdapURI ldap://172.31.0.10:389 BaseDN dc=NTS,dc=Neusoft,dc=local BindDN {{username}@nts.neusoft.local} SystemBindDN cn=project-open_LDAP,OU=_Service-Accounts,OU=IT,OU=HH,DC=nts,DC=neusoft,DC=local SystemBindPW Offen&porjekt&123 ServerType ad GroupMap {Administrators 459 Users 463 Guests 465} SearchFilter {}" 32162
         }
     }        
+}
+
+ad_proc -public im_nts_absence_request_reminder {
+} {
+    Sends absence request reminders.
+} {
+
+    set sql "
+        select 
+            ut.task_id, 
+            wfc.case_id, 
+            ut.transition_key, 
+            a.owner_id, 
+            person__name(a.owner_id) as owner_name, 
+            o.creation_user, 
+            o.creation_ip
+        from im_user_absences a 
+        inner join wf_cases wfc 
+        on (wfc.object_id=a.absence_id) 
+        inner join wf_user_tasks ut 
+        on (ut.case_id=wfc.case_id) inner join acs_objects o on (o.object_id=absence_id) 
+        where wfc.state='active' 
+        and enabled_date < now() - '11 days'::interval
+        and wfc.workflow_key='vacation_approval_wf'
+    "
+
+    # If the workflow is still open after 11 days, set it to approved 
+    # (this involves setting the workflow value for the question "approved?") 
+    # and finish the workflow.
+
+    set reqs [db_list_of_lists 11_days_over $sql]
+
+    foreach req $reqs {
+        foreach {task_id case_id transition_key owner_id owner_name creation_user creation_ip} $req break
+
+        db_exec_plsql auto_approve_task "
+            select im_workflow__auto_approve_task(
+                :task_id,
+                :case_id,
+                :transition_key,
+                :owner_id,
+                :owner_name,
+                :creation_user,
+                :creation_ip,
+                :transition_key || ' auto_approve_11_days_over ' || :owner_name,
+                'Assigning to ' || :owner_name || ' (auto-approved) after 11 days.'
+            ) 
+        "
+
+    }
+
+
+    set sql "
+        select 
+            absence_id,
+            person__name(owner_id) as owner_name, 
+            im_name_from_id(absence_type_id) as absence_type, 
+            to_char(start_date,'YYYY-MM-DD') as start_date, 
+            to_char(end_date,'YYYY-MM-DD') as end_date, 
+            duration_days, 
+            description, 
+            contact_info, 
+            person__name(vacation_replacement_id) as vacation_replacement_name 
+        from im_user_absences a 
+        inner join wf_cases wfc 
+        on (wfc.object_id=a.absence_id) 
+        inner join wf_user_tasks ut 
+        on (ut.case_id=wfc.case_id) 
+        where wfc.state='active' 
+        and enabled_date < now() - '7 days'::interval
+        and wfc.workflow_key='vacation_approval_wf'
+    "
+
+    db_foreach absence_req_above_7_days $sql {
+
+        set msg "
+PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!
+
+Name: ${owner_name}
+Type: ${absence_type}
+Start Date: ${start_date}
+Ende Date: ${end_date}
+Duration Days: ${duration_days}
+Description: ${description}
+Contact Information: ${contact_info}
+Vacation Replacement: ${vacation_replacement_name}
+"
+
+        im_nts_absence_inform -absence_id $absence_id -type "7_days_over" $msg
+
+    }
+
 }
