@@ -747,9 +747,9 @@ ad_proc -public im_nts_absence_request_reminder {
         # first sends message, then auto-approves (must be done in that order)
         db_transaction {
 
+            # First line will be i18n string of the following:
+            # "This request was based on the works council agreement automatically approved 10 days after submitting."
             set msg "
-This request was based on the works council agreement automatically approved 10 days after submitting.
-
 Name: ${owner_name}
 Type: ${absence_type}
 Start Date: ${start_date}
@@ -804,9 +804,9 @@ Vacation Replacement: ${vacation_replacement_name}
 
     db_foreach reqs_7_days_over $sql {
 
+        # First line will be i18n string of the following:
+        # "PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!"
         set msg "
-PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!
-
 Name: ${owner_name}
 Type: ${absence_type}
 Start Date: ${start_date}

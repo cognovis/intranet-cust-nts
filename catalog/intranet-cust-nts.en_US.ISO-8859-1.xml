@@ -5,6 +5,10 @@
   <msg key="Description">Description</msg>
   <msg key="Duration_Days">Duration Days</msg>
   <msg key="Ende_Date">Ende Date</msg>
+  <msg key="lt_7_days_over_Absence_Req_Reminder_Body">PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!</msg>
+  <msg key="lt_7_days_over_Absence_Req_Reminder_Subject">REMINDER: New Absence Request</msg>
+  <msg key="lt_10_days_over_Absence_Req_Reminder_Body">This request was based on the works council agreement automatically approved 10 days after submitting.</msg>
+  <msg key="lt_10_days_over_Absence_Req_Reminder_Subject">Automatically Approved Absence Request</msg>
   <msg key="lt_Approved_Absence_Requ">Approved Absence Request</msg>
   <msg key="lt_Cancelled_Absence_Req">Cancelled Absence Request</msg>
   <msg key="lt_Changed_Absence_Reque">Changed Absence Request</msg>
