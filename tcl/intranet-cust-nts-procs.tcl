@@ -126,7 +126,7 @@ ad_proc -public im_nts_absence_inform {
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
 	    # Send to supervisor and HR in CC
             set cc_addr $from_addr
-	    if {$supervisor_id ne $user_id} {
+	    if {$supervisor_id ne $user_id && $supervisor_id ne ""} {
 		lappend cc_addr [db_string owner_mail "select email from parties where party_id = :supervisor_id"]
 	    }
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
