@@ -46,8 +46,7 @@ ad_proc -public im_nts_absence_inform {
         where absence_id = :absence_id
     "
 
-    #set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
-    set pm_ids ""
+    set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
     set supervisor_id [db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id"  -default ""]
     set hr_ids [group::get_members -group_id [im_hr_group_id]]
     set user_id [ad_conn user_id]
