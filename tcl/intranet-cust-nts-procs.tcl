@@ -704,11 +704,11 @@ ad_proc -public im_nts_absence_request_reminder {
         inner join wf_user_tasks ut 
         on (ut.case_id=wfc.case_id) inner join acs_objects o on (o.object_id=absence_id) 
         where wfc.state='active' 
-        and enabled_date < now() - '11 days'::interval
+        and enabled_date < now() - '10 days'::interval
         and wfc.workflow_key='vacation_approval_wf'
     "
 
-    # If the workflow is still open after 11 days, set it to approved 
+    # If the workflow is still open after 10 days, set it to approved 
     # (this involves setting the workflow value for the question "approved?") 
     # and finish the workflow.
 
@@ -726,8 +726,8 @@ ad_proc -public im_nts_absence_request_reminder {
                 :owner_name,
                 :creation_user,
                 :creation_ip,
-                :transition_key || ' auto_approve_11_days_over ' || :owner_name,
-                'Assigning to ' || :owner_name || ' (auto-approved) after 11 days.'
+                :transition_key || ' auto_approve_10_days_over ' || :owner_name,
+                'Approved automatically after 10 days.'
             ) 
         "
 
