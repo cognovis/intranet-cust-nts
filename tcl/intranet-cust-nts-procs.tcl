@@ -39,17 +39,24 @@ ad_proc -public im_nts_absence_inform {
             duration_days,
             absence_type_id,
             absence_name,
-            description,
-            contact_info,
-            vacation_replacement_id,
-            ut.user_id as wf_assigned_user_id
+            description, 
+            contact_info, 
+            vacation_replacement_id
+        from im_user_absences 
+        where absence_id = :absence_id
+    "
+
+    set wf_assigned_user_id [db_string wf_assigned_user "
+        select ut.user_id as wf_assigned_user_id
         from im_user_absences a
         left outer join wf_cases wfc
         on (wfc.object_id=a.absence_id)
         left outer join wf_user_tasks ut
         on (ut.case_id=wfc.case_id)
         where absence_id = :absence_id
-    "
+    " -default ""]
+
+
     set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
     set supervisor_id [db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id"  -default ""]
     set hr_ids [group::get_members -group_id [im_hr_group_id]]
@@ -171,6 +178,12 @@ ad_proc -public im_nts_absence_inform {
             set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Please_Process_Absence_Request]: $msg"
+        }
+        10_days_over {
+            set subject "[_ intranet-cust-nts.lt_Auto_Approved_Absence_Request]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
+            set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
+            set cc_addr $from_addr
+            set workflow_msg "<br\>[_ intranet-cust-nts.Auto_Approved_Absence_Request_Msg]: $msg"
         }
     }
     
@@ -697,7 +710,17 @@ ad_proc -public im_nts_absence_request_reminder {
             a.owner_id, 
             person__name(a.owner_id) as owner_name, 
             o.creation_user, 
-            o.creation_ip
+            o.creation_ip,
+            
+            absence_id,
+            im_name_from_id(absence_type_id) as absence_type, 
+            to_char(start_date,'YYYY-MM-DD') as start_date, 
+            to_char(end_date,'YYYY-MM-DD') as end_date, 
+            duration_days, 
+            description, 
+            contact_info, 
+            person__name(vacation_replacement_id) as vacation_replacement_name 
+
         from im_user_absences a 
         inner join wf_cases wfc 
         on (wfc.object_id=a.absence_id) 
@@ -712,10 +735,12 @@ ad_proc -public im_nts_absence_request_reminder {
     # (this involves setting the workflow value for the question "approved?") 
     # and finish the workflow.
 
-    set reqs [db_list_of_lists 11_days_over $sql]
+    set reqs [db_list_of_lists reqs_10_days_over $sql]
 
     foreach req $reqs {
-        foreach {task_id case_id transition_key owner_id owner_name creation_user creation_ip} $req break
+        foreach {task_id case_id transition_key owner_id owner_name creation_user creation_ip
+                 absence_id absence_type start_date end_date duration_days description contact_info
+                 vacation_replacement_name} $req break
 
         db_exec_plsql auto_approve_task "
             select im_workflow__auto_approve_task(
@@ -730,6 +755,21 @@ ad_proc -public im_nts_absence_request_reminder {
                 'Approved automatically after 10 days.'
             ) 
         "
+
+        set msg "
+This request was based on the works council agreement automatically approved 10 days after submitting.
+
+Name: ${owner_name}
+Type: ${absence_type}
+Start Date: ${start_date}
+Ende Date: ${end_date}
+Duration Days: ${duration_days}
+Description: ${description}
+Contact Information: ${contact_info}
+Vacation Replacement: ${vacation_replacement_name}
+"
+
+        im_nts_absence_inform -absence_id $absence_id -type "10_days_over" -msg $msg
 
     }
 
@@ -755,7 +795,7 @@ ad_proc -public im_nts_absence_request_reminder {
         and wfc.workflow_key='vacation_approval_wf'
     "
 
-    db_foreach absence_req_above_7_days $sql {
+    db_foreach reqs_7_days_over $sql {
 
         set msg "
 PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!
@@ -770,7 +810,7 @@ Contact Information: ${contact_info}
 Vacation Replacement: ${vacation_replacement_name}
 "
 
-        im_nts_absence_inform -absence_id $absence_id -type "7_days_over" $msg
+        im_nts_absence_inform -absence_id $absence_id -type "7_days_over" -msg $msg
 
     }
 
