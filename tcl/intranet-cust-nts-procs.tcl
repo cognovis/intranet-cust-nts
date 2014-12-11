@@ -46,18 +46,8 @@ ad_proc -public im_nts_absence_inform {
         where absence_id = :absence_id
     "
 
-    set wf_assigned_user_id [db_string wf_assigned_user "
-        select ut.user_id as wf_assigned_user_id
-        from im_user_absences a
-        left outer join wf_cases wfc
-        on (wfc.object_id=a.absence_id)
-        left outer join wf_user_tasks ut
-        on (ut.case_id=wfc.case_id)
-        where absence_id = :absence_id
-    " -default ""]
-
-
-    set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
+    #set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
+    set pm_ids ""
     set supervisor_id [db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id"  -default ""]
     set hr_ids [group::get_members -group_id [im_hr_group_id]]
     set user_id [ad_conn user_id]
@@ -173,17 +163,24 @@ ad_proc -public im_nts_absence_inform {
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_rejection]: $msg"
         }
-        7_days_over {
-            set subject "[_ intranet-cust-nts.lt_Reminder_New_Absence_Request]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
-            set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
-            set cc_addr $from_addr
-            set workflow_msg "<br\>[_ intranet-cust-nts.Please_Process_Absence_Request]: $msg"
-        }
+        7_days_over -
         10_days_over {
-            set subject "[_ intranet-cust-nts.lt_Auto_Approved_Absence_Request]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
+
+            db_1row wf_assigned_user "
+                select ut.user_id as wf_assigned_user_id
+                from im_user_absences a
+                inner join wf_cases wfc
+                on (wfc.object_id=a.absence_id)
+                inner join wf_user_tasks ut
+                on (ut.case_id=wfc.case_id)
+                where absence_id = :absence_id
+            "
+
+
+            set subject "[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Subject]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
             set cc_addr $from_addr
-            set workflow_msg "<br\>[_ intranet-cust-nts.Auto_Approved_Absence_Request_Msg]: $msg"
+            set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]: $msg"
         }
     }
     
@@ -742,21 +739,10 @@ ad_proc -public im_nts_absence_request_reminder {
                  absence_id absence_type start_date end_date duration_days description contact_info
                  vacation_replacement_name} $req break
 
-        db_exec_plsql auto_approve_task "
-            select im_workflow__auto_approve_task(
-                :task_id,
-                :case_id,
-                :transition_key,
-                :owner_id,
-                :owner_name,
-                :creation_user,
-                :creation_ip,
-                :transition_key || ' auto_approve_10_days_over ' || :owner_name,
-                'Approved automatically after 10 days.'
-            ) 
-        "
+        # first sends message, then auto-approves (must be done in that order)
+        db_transaction {
 
-        set msg "
+            set msg "
 This request was based on the works council agreement automatically approved 10 days after submitting.
 
 Name: ${owner_name}
@@ -769,7 +755,23 @@ Contact Information: ${contact_info}
 Vacation Replacement: ${vacation_replacement_name}
 "
 
-        im_nts_absence_inform -absence_id $absence_id -type "10_days_over" -msg $msg
+            im_nts_absence_inform -absence_id $absence_id -type "10_days_over" -msg $msg
+
+            db_exec_plsql auto_approve_task "
+                select im_workflow__auto_approve_task(
+                    :task_id,
+                    :case_id,
+                    :transition_key,
+                    :owner_id,
+                    :owner_name,
+                    :creation_user,
+                    :creation_ip,
+                    :transition_key || ' auto_approve_10_days_over ' || :owner_name,
+                    'Approved automatically after 10 days.'
+                ) 
+            "
+
+        }
 
     }
 
