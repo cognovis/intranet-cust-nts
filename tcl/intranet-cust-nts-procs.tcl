@@ -185,7 +185,7 @@ ad_proc -public im_nts_absence_inform {
             set subject "[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Subject]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
             set cc_addr $from_addr
-            set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]: $msg"
+            set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]"
         }
     }
     
@@ -749,18 +749,9 @@ ad_proc -public im_nts_absence_request_reminder {
 
             # First line will be i18n string of the following:
             # "This request was based on the works council agreement automatically approved 10 days after submitting."
-            set msg "
-Name: ${owner_name}
-Type: ${absence_type}
-Start Date: ${start_date}
-Ende Date: ${end_date}
-Duration Days: ${duration_days}
-Description: ${description}
-Contact Information: ${contact_info}
-Vacation Replacement: ${vacation_replacement_name}
-"
+            set msg "Approved automatically after 10 days."
 
-            im_nts_absence_inform -absence_id $absence_id -type "10_days_over" -msg $msg
+            im_nts_absence_inform -absence_id $absence_id -type "10_days_over"
 
             db_exec_plsql auto_approve_task "
                 select im_workflow__auto_approve_task(
@@ -798,26 +789,17 @@ Vacation Replacement: ${vacation_replacement_name}
         inner join wf_user_tasks ut 
         on (ut.case_id=wfc.case_id) 
         where wfc.state='active' 
-        and enabled_date < now() - '7 days'::interval
+        and enabled_date + '7 days'::interval < now()
+        and enabled_date + '8 days'::interval > now()
         and wfc.workflow_key='vacation_approval_wf'
     "
 
     db_foreach reqs_7_days_over $sql {
 
         # First line will be i18n string of the following:
-        # "PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!"
-        set msg "
-Name: ${owner_name}
-Type: ${absence_type}
-Start Date: ${start_date}
-Ende Date: ${end_date}
-Duration Days: ${duration_days}
-Description: ${description}
-Contact Information: ${contact_info}
-Vacation Replacement: ${vacation_replacement_name}
-"
+        set msg "PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!"
 
-        im_nts_absence_inform -absence_id $absence_id -type "7_days_over" -msg $msg
+        im_nts_absence_inform -absence_id $absence_id -type "7_days_over"
 
     }
 
