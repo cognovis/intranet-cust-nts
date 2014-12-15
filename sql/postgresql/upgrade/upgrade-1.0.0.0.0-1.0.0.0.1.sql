@@ -6,3 +6,4 @@ update im_view_columns set visible_for = 'if {$hide_colors_p eq 0} {set visible_
 update wf_cases set state = 'finished' where case_id in (select case_id from wf_cases, im_user_absences where state = 'active' and workflow_key = 'vacation_approval_wf' and object_id = absence_id and absence_status_id =16006);
 update wf_cases set state = 'finished' where case_id in (select case_id from wf_cases, im_user_absences where state = 'active' and workflow_key = 'hr_vacation_approval_wf' and object_id = absence_id and absence_status_id =16006);
 update wf_cases set state = 'finished' where case_id in (select case_id from wf_cases, im_user_absences where state = 'active' and workflow_key = 'vacation_storno_wf' and object_id = absence_id and absence_status_id =16006);
+update wf_context_transition_info set fire_custom_arg = '16006' where fire_custom_arg = '16002';
