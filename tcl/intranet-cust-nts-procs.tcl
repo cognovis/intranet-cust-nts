@@ -46,6 +46,16 @@ ad_proc -public im_nts_absence_inform {
         where absence_id = :absence_id
     "
 
+    set assignee_ids [db_list wf_assigned_user "
+        select ut.user_id as wf_assigned_user_id
+        from im_user_absences a
+        inner join wf_cases wfc
+        on (wfc.object_id=a.absence_id)
+        inner join wf_user_tasks ut
+        on (ut.case_id=wfc.case_id)
+        where absence_id = :absence_id
+    "]
+    
     if { [catch {
         set pm_ids [planning_item::get_project_managers -user_id $owner_id -start_date $start_date -end_date $end_date]
     } errmsg] } {
@@ -75,7 +85,13 @@ ad_proc -public im_nts_absence_inform {
         if {$hr_ids ne ""} {
             set to_ids [concat $to_ids $hr_ids]
         }
+    }  
+        
+    if {$owner_id != $user_id} {
+        lappend to_ids $owner_id
     }
+
+    set to_ids [lsort -unique [concat $to_ids $assignee_ids]]
     
     set workflow_msg ""
     
@@ -85,11 +101,9 @@ ad_proc -public im_nts_absence_inform {
     set from_addr [db_string owner_mail "select email from parties where party_id = $user_id"]
     switch $type {
         new {
-            # Check for HR
             set hr_p [db_string case_id "select 1 from wf_cases where object_id = :absence_id and workflow_key = 'hr_vacation_approval_wf' and state='active' limit 1" -default "0"]
-            if {$hr_p} {set to_ids [concat $to_ids $hr_ids]}
+            if {$hr_p && $hr_ids ne ""} {set to_ids [concat $to_ids $hr_ids]}  
             if {$owner_id != $user_id} {
-                lappend to_ids $owner_id
                 
                 #### This actually does not belong to the notification, but it is convenient to store here.
                 # Consider this very bad coding and a quick hack
@@ -126,11 +140,9 @@ ad_proc -public im_nts_absence_inform {
         hr_approved {          
             set subject "[_ intranet-cust-nts.lt_Approved_Absence_Requ] HR: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
-	    # Send to supervisor and HR in CC
-            set cc_addr $from_addr
-	    if {$supervisor_id ne $user_id && $supervisor_id ne ""} {
-		lappend cc_addr [db_string owner_mail "select email from parties where party_id = :supervisor_id"]
-	    }
+	        # Send to supervisor and HR in CC
+	        set cc_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $assignee_ids])"]
+            lappend cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
         }
         rejected {
@@ -140,8 +152,12 @@ ad_proc -public im_nts_absence_inform {
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_rejection]: $msg"
         }
         hr_rejected {
+            set to_ids [list $owner_id]
+	        if {$supervisor_id ne $user_id && $supervisor_id ne ""} {
+                lappend to_ids $supervisor_id
+            }
             set subject "[_ intranet-cust-nts.lt_Rejected_Absence_Requ] by HR: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
-            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list [list $owner_id $supervisor_id]])"]
+            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $to_ids])"]
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_rejection]: $msg"
         }
@@ -171,7 +187,7 @@ ad_proc -public im_nts_absence_inform {
         7_days_over -
         10_days_over {
 
-            db_1row wf_assigned_user "
+            set to_ids [db_list wf_assigned_user "
                 select ut.user_id as wf_assigned_user_id
                 from im_user_absences a
                 inner join wf_cases wfc
@@ -179,11 +195,11 @@ ad_proc -public im_nts_absence_inform {
                 inner join wf_user_tasks ut
                 on (ut.case_id=wfc.case_id)
                 where absence_id = :absence_id
-            "
+            "]
 
 
             set subject "[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Subject]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
-            set to_addr [db_string owner_mail "select email from parties where party_id = :wf_assigned_user_id"]
+            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $to_ids])"]
             set cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]"
         }
@@ -587,10 +603,26 @@ ad_proc -public -callback im_user_absence_perm_check -impl nts-view-permissions 
  
         set viewer_ids [concat $owner_id $vacation_replacement_id $pm_ids $supervisor_id $hr_ids]
         set user_id [ad_conn user_id]
+
     
         if {[lsearch $viewer_ids $user_id]<0} {
-            # The user should not see this absence
-            ad_return_error "Not allowed" "You are not allowed to view this absence"
+            # Get assigned user and check if he is allowed
+            set sql "
+                select 1 
+                from wf_cases wfc 
+                inner join wf_user_tasks ut
+                on (ut.case_id=wfc.case_id)
+                where wfc.object_id = :absence_id
+                and ut.user_id = :user_id
+                limit 1
+            "
+            
+            set assigned_to_user_p [db_string assigned_to_user_p $sql -default 0]
+            
+            if { !$assigned_to_user_p } { 
+                # The user should not see this absence
+                ad_return_error "Not allowed" "You are not allowed to view this absence"
+            }
         }
     }
 }
