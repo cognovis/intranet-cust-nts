@@ -26,4 +26,5 @@
   <msg key="Start_Date">Start Date</msg>
   <msg key="Type">Type</msg>
   <msg key="Vacation_Replacement">Vacation Replacement</msg>
+  <msg key="Student">Student</msg>
 </message_catalog>

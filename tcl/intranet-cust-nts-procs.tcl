@@ -804,3 +804,52 @@ ad_proc -public im_nts_absence_request_reminder {
     }
 
 }
+
+ad_proc -public -impl im_member_add_students -callback im_member_add__extend_form {
+    {-object_id:required ""}
+    {-role_id:required ""}
+    {-select_formVar:required ""}
+    {-limit_to_group_id ""}
+    {-notify_checked ""}
+} {
+    Callback that extends the html for selecting employees
+    in intranet/member-add.
+} {
+
+    upvar $select_formVar select_form
+
+    set students_select [im_student_select_multiple -limit_to_group_id $limit_to_group_id user_id_from_search "" 12 multiple]
+
+    append select_form "
+    <td>
+    <form method=POST action=/intranet/member-add-2>
+    [export_entire_form]
+    <input type=hidden name=target value=\"[im_url_stub]/member-add-2\">
+    <input type=hidden name=passthrough value=\"object_id role_id return_url also_add_to_object_id\">
+    <table cellpadding=0 cellspacing=2 border=0>
+      <tr> 
+        <td class=rowtitle align=middle>[_ intranet-cust-nts.Student]</td>
+      </tr>
+      <tr> 
+        <td>
+    $students_select
+        </td>
+      </tr>
+      <tr> 
+        <td>[_ intranet-core.add_as] 
+    [im_biz_object_roles_select role_id $object_id $role_id]
+        </td>
+      </tr>
+      <tr> 
+        <td>
+          <input type=submit value=\"[_ intranet-core.Add]\">
+          <input type=checkbox name=notify_asignee value=1 $notify_checked>[_ intranet-core.Notify]
+        </td>
+      </tr>
+    </table>
+    </form>
+    </td>
+    "
+
+}
+
