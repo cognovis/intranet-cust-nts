@@ -140,8 +140,10 @@ ad_proc -public im_nts_absence_inform {
         hr_approved {          
             set subject "[_ intranet-cust-nts.lt_Approved_Absence_Requ] HR: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             set to_addr [db_string owner_mail "select email from parties where party_id = :owner_id"]
-	        # Send to supervisor and HR in CC
-	        set cc_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $assignee_ids])"]
+	    # Send to supervisor and HR in CC
+	    if {$assignee_ids ne ""} {
+		set cc_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $assignee_ids])"]
+	    }
             lappend cc_addr $from_addr
             set workflow_msg "<br\>[_ intranet-cust-nts.Reason_for_approval]: $msg"
         }
@@ -163,13 +165,17 @@ ad_proc -public im_nts_absence_inform {
         }
         cancelled {
             set subject "[_ intranet-cust-nts.lt_Cancelled_Absence_Req]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
-            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list [list $owner_id $supervisor_id]])"]
+            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list [list $to_ids]])"]
             if {$pm_ids ne ""} {
                 set cc_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $pm_ids])"]
             }
         }
         storno_requested {
-            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list [list $owner_id $supervisor_id]])"]
+	    set to_ids $owner_id
+	    if {$supervisor_id ne ""} {
+		lappend to_ids $supervisor_id
+	    }
+            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $to_ids])"]
             set subject "Vacation Storno Requested: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
         }
         storno_approved {          
