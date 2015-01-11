@@ -65,7 +65,14 @@ ad_proc -public im_nts_absence_inform {
     
     set supervisor_id [db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id"  -default ""]
     set hr_ids [group::get_members -group_id [im_hr_group_id]]
-    set user_id [ad_conn user_id]
+    if {[ns_conn isconnected]} {
+        set user_id [ad_conn user_id]
+    } else {
+        set user_id $supervisor_id
+    }
+    
+    if {$user_id eq ""} {set user_id $owner_id}
+    
     set cc_addr ""
     
     # Format the project_leads
@@ -205,14 +212,19 @@ ad_proc -public im_nts_absence_inform {
 
 
             set subject "[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Subject]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
-            set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $to_ids])"]
-            set cc_addr $from_addr
-            set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]"
+            if {$to_ids eq ""} {
+                set to_addr "[ad_system_owner]"
+                set workflow_msg "<br\>COULD NOT FIND AN ASSIGNED USER FOR $absence_id !!!!"
+            } else {
+                set to_addr [db_list emails "select email from parties where party_id in ([template::util::tcl_to_sql_list $to_ids])"]
+                set cc_addr $from_addr
+                set workflow_msg "<br\>[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Body]"
+            }
         }
     }
     
     set body "Name: <a href='[export_vars -base "[ad_url]intranet-timesheet2/absences/new" -url {absence_id {form_mode "display"}}]'>$absence_name</a><br\>
-[_ intranet-cust-nts.Type]: [im_category_from_id $absence_type_id]<br\>
+[_ intranet-cust-nts.Type]: [im_category_from_id -locale [lang::user::site_wide_locale -user_id $owner_id] $absence_type_id]<br\>
 [_ intranet-cust-nts.Start_Date]: $start_date_pretty<br\>
 [_ intranet-cust-nts.Ende_Date]: $end_date_pretty<br\>
 [_ intranet-cust-nts.Duration_Days]: $duration_days<br\>
@@ -742,6 +754,7 @@ ad_proc -public im_nts_absence_request_reminder {
     Sends absence request reminders.
 } {
 
+    ns_log Notice "Running im_nts_absence_request_reminder"
     set sql "
         select 
             ut.task_id, 
@@ -805,6 +818,7 @@ ad_proc -public im_nts_absence_request_reminder {
                 ) 
             "
 
+            ns_log Notice "im_nts_absence_request_reminder automatically approved $absence_id"
         }
 
     }
@@ -838,6 +852,7 @@ ad_proc -public im_nts_absence_request_reminder {
         set msg "PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!"
 
         im_nts_absence_inform -absence_id $absence_id -type "7_days_over"
+        ns_log Notice "im_nts_absence_request_reminder automatically reminded for $absence_id"
 
     }
 
