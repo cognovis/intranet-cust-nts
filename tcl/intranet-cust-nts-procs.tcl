@@ -210,7 +210,6 @@ ad_proc -public im_nts_absence_inform {
                 where absence_id = :absence_id
             "]
 
-
             set subject "[_ intranet-cust-nts.lt_${type}_Absence_Req_Reminder_Subject]: [im_name_from_user_id $owner_id], $start_date_pretty, $absence_name"
             if {$to_ids eq ""} {
                 set to_addr "[ad_system_owner]"
@@ -827,26 +826,50 @@ ad_proc -public im_nts_absence_request_reminder {
     set sql "
         select 
             absence_id,
+            ut.case_id,
+            task_id,
+            transition_key,
+            ut.user_id,
+            creation_user,
+            creation_ip,
+            object_type,
             person__name(owner_id) as owner_name, 
             im_name_from_id(absence_type_id) as absence_type, 
             to_char(start_date,'YYYY-MM-DD') as start_date, 
             to_char(end_date,'YYYY-MM-DD') as end_date, 
             duration_days, 
             description, 
-            contact_info, 
+            contact_info,
+            enabled_date,
             person__name(vacation_replacement_id) as vacation_replacement_name 
         from im_user_absences a 
         inner join wf_cases wfc 
         on (wfc.object_id=a.absence_id) 
         inner join wf_user_tasks ut 
         on (ut.case_id=wfc.case_id) 
+        inner join acs_objects o
+        on (o.object_id = wfc.case_id)
         where wfc.state='active' 
         and enabled_date + '9 days'::interval < now()
         and enabled_date + '10 days'::interval > now()
         and wfc.workflow_key='vacation_approval_wf'
     "
 
-    db_foreach reqs_7_days_over $sql {
+    db_foreach reqs_8_days_over $sql {
+         
+        set replacement_p [db_string assign_replacement_if_needed "
+            select im_workflow__assign_to_vacation_replacement_if(
+                :task_id,
+                :case_id,
+                :user_id,
+                :user_id,
+                :transition_key,
+                :creation_user,
+                :creation_ip,
+                :object_type
+            )
+        " -default 0]
+ 
 
         # First line will be i18n string of the following:
         set msg "PLEASE PROCESS this Absence Request. Otherwise it will be automatically approved in 3 days!"
