@@ -929,3 +929,30 @@ ad_proc -public -impl im_member_add_students -callback im_member_add__extend_for
 
 }
 
+ad_proc im_nts_absence_new_page_wf_perm_edit_button {
+    -absence_id:required
+} {
+    Should we show the "Edit" button in the AbsenceNewPage?
+    The button is visible only for the Owner of the absence
+    and the Admin, but nobody else during the course of the WF.
+    Also, the Absence should not be changed anymore once it has
+    started.
+} {
+    set perm_table [im_absence_new_page_wf_perm_table]
+    set perm_set [im_workflow_object_permissions \
+            -object_id $absence_id \
+            -perm_table $perm_table
+    ]
+
+    # Special check for HR. If the owner is looking at an approved absence
+    # Do not allow the edit button.
+    db_1row absence_info "select owner_id, absence_status_id from im_user_absences where absence_id = :absence_id"
+    set user_id [ad_conn user_id]
+    
+    if {[lsearch [im_sub_categories [im_user_absence_status_active]] $absence_status_id]>-1 && $owner_id == $user_id} {
+        return 0
+    } else {
+        return [expr [lsearch $perm_set "w"] > -1]        
+    }
+}
+
