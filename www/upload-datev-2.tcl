@@ -153,7 +153,7 @@ foreach csv_line_fields $values_list_of_lists {
             set absence_type_id 5001
             ns_write "Importing absence for $employee_name with start_date $absence_start of type $absence_type<br \>"
         }
-	    BT- GB - GU - GZ - HO - TD - U - UG - UU - ZU { 
+	    BT - GB - GU - GZ - HO - TD - U - UG - UU - ZU { 
             # Ignore them completely as they are maintained in ]project-open[
             set absence_type_id ""
             continue
