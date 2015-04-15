@@ -779,7 +779,7 @@ ad_proc -public im_nts_absence_request_reminder {
         inner join wf_user_tasks ut 
         on (ut.case_id=wfc.case_id) inner join acs_objects o on (o.object_id=absence_id) 
         where wfc.state='active' 
-        and enabled_date < now() - '12 days'::interval
+        and enabled_date < now() - '13 days'::interval
         and wfc.workflow_key='vacation_approval_wf'
     "
 
@@ -799,7 +799,7 @@ ad_proc -public im_nts_absence_request_reminder {
 
             # First line will be i18n string of the following:
             # "This request was based on the works council agreement automatically approved 10 days after submitting."
-            set msg "Approved automatically after 12 days."
+            set msg "Approved automatically after 13 days."
 
             im_nts_absence_inform -absence_id $absence_id -type "10_days_over"
 
