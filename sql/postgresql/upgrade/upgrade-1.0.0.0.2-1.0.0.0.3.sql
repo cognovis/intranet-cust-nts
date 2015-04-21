@@ -8,5 +8,6 @@ where parameter_id in (
         where   parameter_name = 'AbsenceNewPageWfEditButtonPerm' and
                 package_id = '12195'
         );
-        
+
 update im_categories set aux_string2='?' where category_id in (16004,16010);
+

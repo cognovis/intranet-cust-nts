@@ -509,6 +509,21 @@ ad_proc -public -callback workflow_task_after_update -impl nts_inform {
                 return [im_nts_absence_inform -absence_id $absence_id -type storno_requested -msg $storno_reason]
             }     
         }
+        "timesheet_approval_wf" {
+            foreach { key value} $attributes {
+                set $key $value
+            }    
+            if {[info exists confirm_hours_are_the_logged_hours_ok_p]} {
+                
+                if {$confirm_hours_are_the_logged_hours_ok_p == "f"} {
+                    # We have a rejection here 
+                    set from_addr [db_string owner_mail "select email from parties where party_id = [ad_conn user_id]"]
+
+                    acs_mail_lite::send -to_addr "[ad_system_owner]" -from_addr $from_addr -cc_addr "" -subject "Timesheet rejected" -body "One of your timesheets has been rejected, please take a look." \
+                    -send_immediately -mime_type "text/html" -use_sender
+                }
+            }
+        }
     }
 }
 
