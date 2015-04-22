@@ -304,7 +304,7 @@ ad_proc -public -callback im_user_absence_after_delete -impl nts_inform {
     return [im_nts_absence_inform -absence_id $object_id -type cancelled] 
 }
 
-ad_proc -public -callback im_user_absence_before_delete -impl nts_storno_check {
+ad_proc -public -callback im_user_absence_before_nuke -impl nts_storno_check {
     {-object_id:required}
     {-status_id ""}
     {-type_id ""}
@@ -312,6 +312,10 @@ ad_proc -public -callback im_user_absence_before_delete -impl nts_storno_check {
     Check whether we need to start a new workflow or can just let the code continue
 } {
     db_1row absence_info "select owner_id, absence_status_id from im_user_absences where absence_id = :object_id"
+    
+    # Do not start a workflow if we have don't have a supervisor
+    if {[db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id" -default ""] == ""} {return 1}
+    
     if {[im_user_absence_status_requested] != $absence_status_id} {
         # Do not allow this to continue
         ns_log Notice "A new workflow should have been started for cancellation of Absence $object_id"
