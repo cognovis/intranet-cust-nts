@@ -517,10 +517,63 @@ ad_proc -public -callback workflow_task_after_update -impl nts_inform {
                 
                 if {$confirm_hours_are_the_logged_hours_ok_p == "f"} {
                     # We have a rejection here 
-                    set from_addr [db_string owner_mail "select email from parties where party_id = [ad_conn user_id]"]
+                    set current_user_id [ad_conn user_id]
+                    db_1row owner_mail "select email as from_addr, im_name_from_user_id(party_id) as current_user_name from parties where party_id = :current_user_id"
 
-                    acs_mail_lite::send -to_addr "[ad_system_owner]" -from_addr $from_addr -cc_addr "" -subject "Timesheet rejected" -body "One of your timesheets has been rejected, please take a look." \
-                    -send_immediately -mime_type "text/html" -use_sender
+                    # Get the information about the conf object
+                    db_1row conf_object_info "select im_name_from_id(conf_project_id) as project_name, im_name_from_user_id(conf_user_id) as user_name, conf_user_id, conf_project_id, start_date, end_date from im_timesheet_conf_objects where conf_id = :absence_id"
+                    
+                    set to_addr [party::email -party_id $conf_user_id]
+                    set cc_addr ""
+                    set subject "Rejected logged hours for $user_name @ $project_name ([lc_time_fmt $start_date %F] - [lc_time_fmt $end_date %F])"
+                    set julian_date [im_date_ansi_to_julian [lc_time_fmt $start_date %F]]
+                    set timesheet_url [export_vars -base "/intranet-timesheet2/hours/new" -url {julian_date {show_week_p 1} {user_id_from_search $conf_user_id}}]
+
+                    # Missing - Link to the week.
+                    set body "Your logged hours were rejected by $current_user_name. Please correct the entries and <a href='$timesheet_url'>re-confirm them for the week</a>!
+                    <table>
+                        <tr>
+                            <td>Project:</td>
+                            <td>$project_name</td>
+                        </tr>
+                        <tr>
+                            <td>Employee:</td>
+                            <td>$user_name</td>
+                        </tr>
+                        <tr>
+                            <td>Start Date:</td>
+                            <td>[lc_time_fmt $start_date %x]</td>
+                        </tr>
+                        <tr>
+                            <td>End Date:</td>
+                            <td>[lc_time_fmt $end_date %x]</td>
+                        </tr>                    
+                    "
+                    
+                    db_foreach hour {select day, hours from im_hours where conf_object_id = :absence_id} {
+                        append body "
+                        <tr>
+                            <td>[lc_time_fmt $day %x]:</td>
+                            <td>$hours</td>
+                        </tr>                                            
+                        "
+                    }
+                    
+                    append body "</table>"
+                    
+                    if {"ProjectOpen.Hamburg@de.neusoft.com" == "[ad_system_owner]"} {
+                        # This is the production system, send out E-Mails
+                        acs_mail_lite::send -to_addr $to_addr -from_addr $from_addr -cc_addr $cc_addr -subject $subject -body $body \
+                            -send_immediately -mime_type "text/html" -use_sender
+                    } else {
+                        append body "
+                        <p\>
+                        This E-Mail was supposed to go to $to_addr and have $cc_addr in CC
+                        "
+                        acs_mail_lite::send -to_addr "[ad_system_owner]" -from_addr $from_addr -cc_addr "" -subject $subject -body $body \
+                            -send_immediately -mime_type "text/html" -use_sender
+                            
+                    }
                 }
             }
         }
