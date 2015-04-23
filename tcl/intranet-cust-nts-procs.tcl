@@ -328,7 +328,7 @@ ad_proc -public -callback im_user_absence_before_nuke -impl nts_storno_check {
     # Do not start a workflow if we have don't have a supervisor
     if {[db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id" -default ""] == ""} {return 1}
     
-    if {[im_user_absence_status_requested] != $absence_status_id} {
+    if {[im_user_absence_status_requested] != $absence_status_id && [im_user_absence_status_planned] != $absence_status_id} {
         # Do not allow this to continue
         ns_log Notice "A new workflow should have been started for cancellation of Absence $object_id"
 	
