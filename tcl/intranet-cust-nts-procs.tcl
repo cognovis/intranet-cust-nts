@@ -306,7 +306,7 @@ ad_proc -public -callback im_user_absence_after_update -impl nts_inform {
     }
 }
 
-ad_proc -public -callback im_user_absence_after_delete -impl nts_inform {
+ad_proc -public -callback im_user_absence_after_nuke -impl nts_inform {
     {-object_id:required}
     {-status_id ""}
     {-type_id ""}
