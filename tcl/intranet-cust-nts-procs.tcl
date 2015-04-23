@@ -268,7 +268,9 @@ ad_proc -public -callback im_user_absence_after_create -impl nts_inform {
 } {
     Inform the project managers and supervisors of the created absence
 } {
-   return [im_nts_absence_inform -absence_id $object_id -type new]
+    if {$status_id ne [im_user_absence_status_planned]} {
+        return [im_nts_absence_inform -absence_id $object_id -type new]
+    }
 }
 
 ad_proc -public -callback im_user_absence_before_create -impl nts_students {
@@ -290,11 +292,21 @@ ad_proc -public -callback im_user_absence_after_update -impl nts_inform {
     {-type_id ""}
 } {
     Inform the project managers and supervisors of the changed absence
+    
+    Obviously they don't care if it is a planned vacation!
 } {
-    return [im_nts_absence_inform -absence_id $object_id -type edit] 
+    if {$status_id ne [im_user_absence_status_planned]} {
+        # If the workflow for the absence was started in the last minute, then we have a new request
+        set new_wf_p [db_string wf_control "select 1 from wf_cases c, acs_objects o where c.case_id = o.object_id and o.creation_date >= now() - interval '30 seconds' and c.object_id = :object_id" -default 0]
+        if {$new_wf_p} {
+            return [im_nts_absence_inform -absence_id $object_id -type new]
+        } else {
+            return [im_nts_absence_inform -absence_id $object_id -type edit]                 
+        }
+    }
 }
 
-ad_proc -public -callback im_user_absence_after_delete -impl nts_inform {
+ad_proc -public -callback im_user_absence_after_nuke -impl nts_inform {
     {-object_id:required}
     {-status_id ""}
     {-type_id ""}
@@ -316,7 +328,7 @@ ad_proc -public -callback im_user_absence_before_nuke -impl nts_storno_check {
     # Do not start a workflow if we have don't have a supervisor
     if {[db_string supervisor "select supervisor_id from im_employees where employee_id = :owner_id" -default ""] == ""} {return 1}
     
-    if {[im_user_absence_status_requested] != $absence_status_id} {
+    if {[im_user_absence_status_requested] != $absence_status_id && [im_user_absence_status_planned] != $absence_status_id} {
         # Do not allow this to continue
         ns_log Notice "A new workflow should have been started for cancellation of Absence $object_id"
 	
